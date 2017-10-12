@@ -6,7 +6,7 @@ import os
 import pickle
 
 from VisualGenomeQA import get_loader, load_vocab, Vocabulary
-from models import EncoderCNN, DecoderRNN, VQGModel
+from models import VQGModel
 from loss import NLLLoss
 
 from torch.autograd import Variable 
@@ -49,12 +49,9 @@ def main(args):
 
     # Build the models
     logger.info("Building image captioning models...")
-    encoder = EncoderCNN(args.hidden_size)
-    decoder = DecoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos),
-                         rnn_cell=args.rnn_cell)
+    vqg = VQGModel(vocab, args.max_length, args.hidden_size,
+                   rnn_cell=args.rnn_cell)
 
-    vqg = VQGModel(encoder, decoder)
     logger.info("Done")
     
     if torch.cuda.is_available():
@@ -69,8 +66,7 @@ def main(args):
         loss.cuda()
 
     # Parameters to train
-    params = list(decoder.parameters()) + list(encoder.cnn.fc.parameters())\
-             + list(encoder.bn.parameters())
+    params = vqg.params_to_train()
     optimizer = torch.optim.Adam(params, lr=args.learning_rate)
     
     # Train the Models
@@ -109,17 +105,14 @@ def main(args):
                 
             # Save the models
             if (i+1) % args.save_step == 0:
-                torch.save(decoder.state_dict(), 
+                torch.save(vqg.state_dict(), 
                            os.path.join(args.model_path, 
-                                        'decoder-%d-%d.pkl' %(epoch+1, i+1)))
-                torch.save(encoder.state_dict(), 
-                           os.path.join(args.model_path, 
-                                        'encoder-%d-%d.pkl' %(epoch+1, i+1)))
+                                        'vqg-%d-%d.pkl' %(epoch+1, i+1)))
                 
 if __name__ == '__main__':
     ROOT_DIR = '/home/donlee/QBot/qbot/cnnlstm/'
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='./weights/vqg/' ,
+    parser.add_argument('--model_path', type=str, default='./weights/' ,
                         help='path for saving trained models')
     parser.add_argument('--crop_size', type=int, default=224 ,
                         help='size for randomly cropping images')
@@ -138,8 +131,6 @@ if __name__ == '__main__':
     # Model parameters
     parser.add_argument('--rnn_cell', type=str, default='lstm',
                         help='type of rnn cell (gru or lstm)')
-    parser.add_argument('--embed_size', type=int , default=512 ,
-                        help='dimension of word embedding vectors')
     parser.add_argument('--hidden_size', type=int , default=512 ,
                         help='dimension of lstm hidden states')
     parser.add_argument('--num_layers', type=int , default=1 ,
@@ -147,6 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_length', type=int , default=20 ,
                         help='maximum sequence length')
     
+    # Training parameters
     parser.add_argument('--num_epochs', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--num_workers', type=int, default=2)

@@ -10,7 +10,7 @@ from PIL import Image
 import nltk
 
 from VisualGenomeQA import get_loader, load_vocab, Vocabulary
-from models import EncoderCNN, DecoderRNN, TopKDecoder, VQGModel
+from models import TopKDecoder, VQGModel
 
 def main(args):
     # Image preprocessing
@@ -24,17 +24,13 @@ def main(args):
     vocab = load_vocab(args.vocab_path)
 
     # Build Models
-    encoder = EncoderCNN(args.hidden_size)
-    decoder = DecoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos),
-                         rnn_cell=args.rnn_cell)
-    
+    vqg = VQGModel(vocab, args.max_length, args.hidden_size,
+                   rnn_cell=args.rnn_cell)
 
     # Load the trained model parameters
-    encoder.load_state_dict(torch.load(args.encoder_path))
-    decoder.load_state_dict(torch.load(args.decoder_path))
+    vqg.load_state_dict(torch.load(args.model_path))
 
-    vqg = VQGModel(encoder, TopKDecoder(decoder, args.beam_size))
+    vqg.decoder = TopKDecoder(vqg.decoder, args.beam_size)
     vqg.eval()
 
     # Prepare Image       
@@ -66,12 +62,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', type=str, required=True,
                         help='input image for generating caption')
-    parser.add_argument('--encoder_path', type=str,
-                        default='./weights/vqg/encoder-1-1000.pkl',
-                        help='path for trained encoder')
-    parser.add_argument('--decoder_path', type=str,
-                        default='./weights/vqg/decoder-1-1000.pkl',
-                        help='path for trained decoder')
+    parser.add_argument('--model_path', type=str,
+                        default='./weights/vqg-1-1000.pkl',
+                        help='path for trained model')
     parser.add_argument('--vocab_path', type=str,
                         default='VisualGenomeQA/data/vocab_without_answers.pkl',
                         help='path for vocabulary wrapper')
