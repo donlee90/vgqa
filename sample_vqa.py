@@ -10,7 +10,7 @@ from PIL import Image
 import nltk
 
 from VisualGenomeQA import get_loader, load_vocab, Vocabulary
-from models import EncoderCNN, EncoderRNN, DecoderRNN, TopKDecoder, VQAModel
+from models import TopKDecoder, VQAModel
 
 def main(args):
     # Image preprocessing
@@ -24,20 +24,14 @@ def main(args):
     vocab = load_vocab(args.vocab_path)
 
     # Build Models
-    cnn = EncoderCNN(args.hidden_size)
-    encoder = EncoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         variable_lengths=True, rnn_cell=args.rnn_cell)
-    decoder = DecoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos),
-                         rnn_cell=args.rnn_cell)
+    vqa = VQAModel(vocab, args.max_length, args.hidden_size,
+                   rnn_cell=args.rnn_cell)
     
 
     # Load the trained model parameters
-    cnn.load_state_dict(torch.load(args.cnn_path))
-    encoder.load_state_dict(torch.load(args.encoder_path))
-    decoder.load_state_dict(torch.load(args.decoder_path))
+    vqa.load_state_dict(torch.load(args.model_path))
 
-    vqa = VQAModel(cnn, encoder, TopKDecoder(decoder, args.beam_size))
+    vqa.decoder = TopKDecoder(vqa.decoder, args.beam_size)
     vqa.eval()
 
     # Prepare Image       
@@ -79,15 +73,9 @@ if __name__ == '__main__':
     parser.add_argument('--question', type=str, required=True,
                         default='what is in the picture?',
                         help='question to answer')
-    parser.add_argument('--cnn_path', type=str,
-                        default='./weights/vqa/cnn-1-1000.pkl',
-                        help='path for trained cnn')
-    parser.add_argument('--encoder_path', type=str,
-                        default='./weights/vqa/encoder-1-1000.pkl',
-                        help='path for trained encoder')
-    parser.add_argument('--decoder_path', type=str,
-                        default='./weights/vqa/decoder-1-1000.pkl',
-                        help='path for trained decoder')
+    parser.add_argument('--model_path', type=str,
+                        default='./weights/vqa-1-1000.pkl',
+                        help='path for trained model')
     parser.add_argument('--vocab_path', type=str,
                         default='VisualGenomeQA/data/vocab.pkl',
                         help='path for vocabulary wrapper')
