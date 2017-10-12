@@ -49,15 +49,17 @@ def main(args):
     
     # Run model
     softmax_list, _, other = vqg(image_tensor)
-    topk_length = other['topk_length'][0]
-    topk_sequence = other['sequence']
+    topk_length = other['topk_length']
+    topk_sequence = other['topk_sequence']
 
-    for k in range(args.beam_size):
-        length = topk_length[k]
-        sequence = [seq[k] for seq in topk_sequence]
-        tgt_id_seq = [sequence[di][0].data[0] for di in range(length)]
-        tgt_seq = [vocab.idx2word[tok] for tok in tgt_id_seq]
-        print tgt_seq
+    for i in range(image_tensor.size(0)):
+        print 'image %d' % (i)
+        for k in range(args.beam_size):
+            length = topk_length[i][k]
+            sequence = [seq[i, k] for seq in topk_sequence]
+            tgt_id_seq = [sequence[di].data[0] for di in range(length)]
+            tgt_seq = [vocab.idx2word[tok] for tok in tgt_id_seq]
+            print tgt_seq
 
 
 if __name__ == '__main__':
@@ -79,8 +81,6 @@ if __name__ == '__main__':
     # Model parameters (should be same as paramters in train.py)
     parser.add_argument('--rnn_cell', type=str, default='lstm',
                         help='type of rnn cell (gru or lstm)')
-    parser.add_argument('--embed_size', type=int , default=512,
-                        help='dimension of word embedding vectors')
     parser.add_argument('--hidden_size', type=int , default=512,
                         help='dimension of lstm hidden states')
     parser.add_argument('--num_layers', type=int , default=1 ,
