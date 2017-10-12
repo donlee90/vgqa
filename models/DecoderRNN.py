@@ -89,6 +89,13 @@ class DecoderRNN(BaseRNN):
             self.attention = Attention(self.hidden_size)
 
         self.out = nn.Linear(self.hidden_size, self.output_size)
+        self.init_weights()
+
+    def init_weights(self):
+        """Initialize weights"""
+        self.embedding.weight.data.uniform_(-0.1, 0.1)
+        self.out.weight.data.uniform_(-0.1, 0.1)
+        self.out.bias.data.fill_(0)
 
     def forward_step(self, input_var, hidden, encoder_outputs, function):
         batch_size = input_var.size(0)

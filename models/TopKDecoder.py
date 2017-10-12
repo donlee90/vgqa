@@ -81,6 +81,7 @@ class TopKDecoder(torch.nn.Module):
         self.V = self.rnn.output_size
         self.SOS = self.rnn.sos_id
         self.EOS = self.rnn.eos_id
+        self.rnn_cell = decoder_rnn.rnn_cell
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None, function=F.log_softmax,
                     teacher_forcing_ratio=0, retain_output_probs=True):
@@ -231,12 +232,14 @@ class TopKDecoder(torch.nn.Module):
         if lstm:
             state_size = nw_hidden[0][0].size()
             h_n = tuple([torch.zeros(state_size), torch.zeros(state_size)])
+            if torch.cuda.is_available():
+                h_n = tuple([torch.zeros(state_size).cuda(),
+                             torch.zeros(state_size).cuda()])
         else:
             h_n = torch.zeros(nw_hidden[0].size())
+            if torch.cuda.is_available():
+                h_n = h_n.cuda()
         l = [[self.rnn.max_length] * self.k for _ in range(b)]  # Placeholder for lengths of top-k sequences
-
-        if torch.cuda.is_available():
-            h_n = h_n.cuda()
                                                                 # Similar to `h_n`
 
         # the last step output of the beams are not sorted

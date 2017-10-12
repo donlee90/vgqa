@@ -43,6 +43,12 @@ class EncoderRNN(BaseRNN):
         self.embedding = nn.Embedding(vocab_size, hidden_size)
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers,
                                  batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
+        self.init_weights()
+
+
+    def init_weights(self):
+        """Initialize weights"""
+        self.embedding.weight.data.uniform_(-0.1, 0.1)
 
     def forward(self, input_var, input_lengths=None):
         """
