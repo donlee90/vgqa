@@ -50,7 +50,7 @@ class EncoderRNN(BaseRNN):
         """Initialize weights"""
         self.embedding.weight.data.uniform_(-0.1, 0.1)
 
-    def forward(self, input_var, input_lengths=None):
+    def forward(self, input_var, input_lengths=None, h0=None):
         """
         Applies a multi-layer RNN to an input sequence.
 
@@ -58,6 +58,7 @@ class EncoderRNN(BaseRNN):
             input_var (batch, seq_len): tensor containing the features of the input sequence.
             input_lengths (list of int, optional): A list that contains the lengths of sequences
               in the mini-batch
+            h0 : tensor containing initiali hidden state.
 
         Returns: output, hidden
             - **output** (batch, seq_len, hidden_size): variable containing the encoded features of the input sequence
@@ -67,7 +68,7 @@ class EncoderRNN(BaseRNN):
         embedded = self.input_dropout(embedded)
         if self.variable_lengths:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths, batch_first=True)
-        output, hidden = self.rnn(embedded)
+        output, hidden = self.rnn(embedded, h0)
         if self.variable_lengths:
             output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
         return output, hidden

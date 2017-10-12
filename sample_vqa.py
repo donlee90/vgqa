@@ -1,0 +1,112 @@
+import torch
+import matplotlib.pyplot as plt
+import numpy as np 
+import argparse
+import pickle 
+import os
+from torch.autograd import Variable 
+from torchvision import transforms 
+from PIL import Image
+import nltk
+
+from VisualGenomeQA import get_loader, load_vocab, Vocabulary
+from models import EncoderCNN, EncoderRNN, DecoderRNN, TopKDecoder, VQAModel
+
+def main(args):
+    # Image preprocessing
+    transform = transforms.Compose([ 
+        transforms.Scale(args.crop_size),  
+        transforms.CenterCrop(args.crop_size),
+        transforms.ToTensor(), 
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    
+    # Load vocabulary wrapper
+    vocab = load_vocab(args.vocab_path)
+
+    # Build Models
+    cnn = EncoderCNN(args.hidden_size)
+    encoder = EncoderRNN(len(vocab), args.max_length, args.hidden_size,
+                         variable_lengths=True, rnn_cell=args.rnn_cell)
+    decoder = DecoderRNN(len(vocab), args.max_length, args.hidden_size,
+                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos),
+                         rnn_cell=args.rnn_cell)
+    
+
+    # Load the trained model parameters
+    cnn.load_state_dict(torch.load(args.cnn_path))
+    encoder.load_state_dict(torch.load(args.encoder_path))
+    decoder.load_state_dict(torch.load(args.decoder_path))
+
+    vqa = VQAModel(cnn, encoder, TopKDecoder(decoder, args.beam_size))
+    vqa.eval()
+
+    # Prepare Image       
+    image = Image.open(args.image)
+    image_tensor = Variable(transform(image).unsqueeze(0))
+
+    # Prepare question
+    question = args.question
+    tokens = nltk.tokenize.word_tokenize(str(question).lower())
+    print tokens
+    question = []
+    question.extend([vocab(token) for token in tokens])
+    question_tensor = Variable(torch.Tensor(question).long().unsqueeze(0))
+
+    # If use gpu
+    if torch.cuda.is_available():
+        vqa.cuda()
+        image_tensor = image_tensor.cuda()
+        question_tensor = question_tensor.cuda()
+
+    
+    # Run model
+    softmax_list, _, other = vqa(image_tensor, question_tensor, [len(question)])
+    topk_length = other['topk_length'][0]
+    topk_sequence = other['sequence']
+
+    for k in range(args.beam_size):
+        length = topk_length[k]
+        sequence = [seq[k] for seq in topk_sequence]
+        tgt_id_seq = [sequence[di][0].data[0] for di in range(length)]
+        tgt_seq = [vocab.idx2word[tok] for tok in tgt_id_seq]
+        print tgt_seq
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image', type=str, required=True,
+                        help='input image for generating caption')
+    parser.add_argument('--question', type=str, required=True,
+                        default='what is in the picture?',
+                        help='question to answer')
+    parser.add_argument('--cnn_path', type=str,
+                        default='./weights/vqa/cnn-1-1000.pkl',
+                        help='path for trained cnn')
+    parser.add_argument('--encoder_path', type=str,
+                        default='./weights/vqa/encoder-1-1000.pkl',
+                        help='path for trained encoder')
+    parser.add_argument('--decoder_path', type=str,
+                        default='./weights/vqa/decoder-1-1000.pkl',
+                        help='path for trained decoder')
+    parser.add_argument('--vocab_path', type=str,
+                        default='VisualGenomeQA/data/vocab.pkl',
+                        help='path for vocabulary wrapper')
+    parser.add_argument('--crop_size', type=int, default=224,
+                        help='size for center cropping images')
+    
+    # Model parameters (should be same as paramters in train.py)
+    parser.add_argument('--rnn_cell', type=str, default='lstm',
+                        help='type of rnn cell (gru or lstm)')
+    parser.add_argument('--embed_size', type=int , default=512,
+                        help='dimension of word embedding vectors')
+    parser.add_argument('--hidden_size', type=int , default=512,
+                        help='dimension of lstm hidden states')
+    parser.add_argument('--num_layers', type=int , default=1 ,
+                        help='number of layers in lstm')
+    parser.add_argument('-bs', '--beam_size', type=int, default=10,
+                        help='size of the beam for decoder')
+    parser.add_argument('--max_length', type=int , default=20 ,
+                        help='maximum sequence length')
+
+    args = parser.parse_args()
+    main(args)
