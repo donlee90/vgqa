@@ -25,9 +25,10 @@ def main(args):
 
     # Build Models
     encoder = EncoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         variable_lengths=True)
+                         variable_lengths=True, rnn_cell=args.rnn_cell)
     decoder = DecoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos))
+                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos),
+                         rnn_cell=args.rnn_cell)
     
 
     # Load the trained model parameters
@@ -71,10 +72,10 @@ if __name__ == '__main__':
                         default='what is in the picture?',
                         help='question to answer')
     parser.add_argument('--encoder_path', type=str,
-                        default='./weights/qa/encoder-1-2000.pkl',
+                        default='./weights/qa/encoder-1-1000.pkl',
                         help='path for trained encoder')
     parser.add_argument('--decoder_path', type=str,
-                        default='./weights/qa/decoder-1-2000.pkl',
+                        default='./weights/qa/decoder-1-1000.pkl',
                         help='path for trained decoder')
     parser.add_argument('--vocab_path', type=str, default='VisualGenomeQA/data/vocab.pkl',
                         help='path for vocabulary wrapper')
@@ -82,6 +83,8 @@ if __name__ == '__main__':
                         help='size for center cropping images')
     
     # Model parameters (should be same as paramters in train.py)
+    parser.add_argument('--rnn_cell', type=str, default='lstm',
+                        help='type of rnn cell (gru or lstm)')
     parser.add_argument('--embed_size', type=int , default=512,
                         help='dimension of word embedding vectors')
     parser.add_argument('--hidden_size', type=int , default=512,

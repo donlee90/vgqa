@@ -7,6 +7,7 @@ import pickle
 
 from VisualGenomeQA import get_loader, load_vocab, Vocabulary
 from models import EncoderRNN, DecoderRNN, Seq2seq
+from loss import NLLLoss
 
 from torch.autograd import Variable 
 from torch.nn.utils.rnn import pack_padded_sequence
@@ -51,12 +52,13 @@ def main(args):
     #encoder_rnn = EncoderRNN(args.embed_size, args.hidden_size, 
     #                    len(vocab), args.num_layers)
     encoder = EncoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         variable_lengths=True)
+                         variable_lengths=True, rnn_cell=args.rnn_cell)
 
     #decoder = DecoderRNN(args.embed_size, args.hidden_size, 
     #                    len(vocab), args.num_layers)
     decoder = DecoderRNN(len(vocab), args.max_length, args.hidden_size,
-                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos))
+                         sos_id=vocab(vocab.sos), eos_id=vocab(vocab.eos),
+                         rnn_cell=args.rnn_cell)
 
     seq2seq = Seq2seq(encoder, decoder)
     logger.info("Done")
@@ -64,13 +66,14 @@ def main(args):
     if torch.cuda.is_available():
         seq2seq.cuda()
 
-    for param in seq2seq.parameters():
-        param.data.uniform_(-0.08, 0.08)
-
     # Loss and Optimizer
     weight = torch.ones(len(vocab))
-    weight[vocab(vocab.pad)] = 0
-    criterion = nn.NLLLoss(weight=weight.cuda())
+    pad = vocab(vocab.pad)  # Set loss weight for 'pad' symbol to 0
+    loss = NLLLoss(weight, pad)
+    if torch.cuda.is_available():
+        loss.cuda()
+
+    # Parameters to train
     params = list(seq2seq.parameters())
     optimizer = torch.optim.Adam(params, lr=args.learning_rate)
     
@@ -94,18 +97,19 @@ def main(args):
             seq2seq.zero_grad()
             outputs, hiddens, other = seq2seq(questions, lengths, answers,
                                               teacher_forcing_ratio=1.0)
-            loss = 0
+            # Get loss
+            loss.reset()
             for step, step_output in enumerate(outputs):
                 batch_size = answers.size(0)
-                loss += criterion(step_output.contiguous().view(batch_size, -1),
-                                  answers[:, step + 1])
+                loss.eval_batch(step_output.contiguous().view(batch_size, -1),
+                                answers[:, step + 1])
             loss.backward()
             optimizer.step()
 
             # Print log info
             if i % args.log_step == 0:
                 logger.info('Epoch [%d/%d], Step [%d/%d], Loss: %.4f'
-                      %(epoch, args.num_epochs, i, total_step, loss.data[0])) 
+                      %(epoch, args.num_epochs, i, total_step, loss.get_loss())) 
                 
             # Save the models
             if (i+1) % args.save_step == 0:
@@ -136,6 +140,8 @@ if __name__ == '__main__':
                         help='step size for saving trained models')
     
     # Model parameters
+    parser.add_argument('--rnn_cell', type=str, default='lstm',
+                        help='type of rnn cell (gru or lstm)')
     parser.add_argument('--embed_size', type=int , default=512 ,
                         help='dimension of word embedding vectors')
     parser.add_argument('--hidden_size', type=int , default=512 ,
