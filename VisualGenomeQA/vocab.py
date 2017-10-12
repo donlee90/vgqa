@@ -56,7 +56,7 @@ def load_vocab(vocab_path=default_path):
 
     return vocab
 
-def build_vocab(qa_json, threshold):
+def build_vocab(qa_json, threshold, include_answers=True):
     """Build a simple vocabulary wrapper."""
     with open(qa_json) as f:
         vg_qas = json.load(f)
@@ -69,9 +69,10 @@ def build_vocab(qa_json, threshold):
             tokens = nltk.tokenize.word_tokenize(question.lower())
             counter.update(tokens)
 
-            answer = str(qa["answer"])
-            tokens = nltk.tokenize.word_tokenize(answer.lower())
-            counter.update(tokens)
+            if include_answers:
+                answer = str(qa["answer"])
+                tokens = nltk.tokenize.word_tokenize(answer.lower())
+                counter.update(tokens)
 
             num_questions += 1
 
@@ -96,7 +97,8 @@ def build_vocab(qa_json, threshold):
 def main(args):
     logging.basicConfig(level=logging.INFO)
     vocab = build_vocab(qa_json=args.caption_path,
-                        threshold=args.threshold)
+                        threshold=args.threshold,
+                        include_answers=not(args.without_answers))
     vocab_path = args.vocab_path
     with open(vocab_path, 'wb') as f:
         pickle.dump(vocab, f, pickle.HIGHEST_PROTOCOL)
@@ -114,5 +116,7 @@ if __name__ == '__main__':
                         help='path for saving vocabulary wrapper')
     parser.add_argument('--threshold', type=int, default=4, 
                         help='minimum word count threshold')
+    parser.add_argument('--without-answers', action='store_true',
+                        help='do not include answers in the vocab')
     args = parser.parse_args()
     main(args)
