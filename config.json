@@ -1,0 +1,23 @@
+{
+    "QAModel": {
+        "vocab_path": "VisualGenomeQA/data/vocab.pkl",
+        "model_path": "weights/qa-3-1000.pkl",
+        "max_len": 20,
+        "hidden_size": 512,
+        "beam_size": 20
+    },
+    "VQAModel": {
+        "vocab_path": "VisualGenomeQA/data/vocab.pkl",
+        "model_path": "weights/vqa-3-1000.pkl",
+        "max_len": 20,
+        "hidden_size": 512,
+        "beam_size": 20
+    },
+    "VQGModel": {
+        "vocab_path": "VisualGenomeQA/data/vocab_without_answers.pkl",
+        "model_path": "weights/vqg-3-1000.pkl",
+        "max_len": 20,
+        "hidden_size": 512,
+        "beam_size": 20
+    }
+}
