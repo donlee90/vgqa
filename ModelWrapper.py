@@ -68,6 +68,11 @@ class ModelWrapper(object):
     def decode_topk(self, *args):
         """ Given a list of inputs, output list of topk outputs for each
             input.
+
+        Returns:
+            topk_outputs(list): list of topk outputs for each input.
+            tokk_probs(np.array): array containing probabilities for
+                                  topk_outputs (batch_size, beam_size).
         """
 
         topk_outputs = []
@@ -86,7 +91,10 @@ class ModelWrapper(object):
 
             topk_outputs.append(outputs)
 
-        return topk_outputs
+        scores = other['score']
+        topk_probs = torch.exp(scores).cpu().numpy()
+
+        return topk_outputs, topk_probs
 
 
     def predict(self, *args, **kwargs):
@@ -128,7 +136,7 @@ class VQGWrapper(ModelWrapper):
             images_var = images_var.cuda()
 
         # Run the model
-        topk_questions = self.decode_topk(images_var)
+        topk_questions, topk_probs = self.decode_topk(images_var)
 
         return topk_questions
 
@@ -168,7 +176,7 @@ class QAWrapper(ModelWrapper):
             questions_var = questions_var.cuda()
 
         # Run the model
-        topk_answers = self.decode_topk(questions_var, input_lengths)
+        topk_answers, topk_probs = self.decode_topk(questions_var, input_lengths)
 
         return topk_answers
 
@@ -227,8 +235,8 @@ class VQAWrapper(ModelWrapper):
             questions_var = questions_var.cuda()
 
         # Run the model
-        topk_answers = self.decode_topk(images_var, questions_var,
-                                        input_lengths)
+        topk_answers, topk_probs = self.decode_topk(images_var, questions_var,
+                                                    input_lengths)
 
         return topk_answers
 
