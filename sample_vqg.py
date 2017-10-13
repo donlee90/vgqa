@@ -24,7 +24,8 @@ def main(args):
     vocab = load_vocab(args.vocab_path)
 
     # Build Models
-    vqg = VQGModel(vocab, args.max_length, args.hidden_size,
+    vqg = VQGModel(len(vocab), args.max_length, args.hidden_size,
+                   vocab(vocab.sos), vocab(vocab.eos),
                    rnn_cell=args.rnn_cell)
 
     # Load the trained model parameters

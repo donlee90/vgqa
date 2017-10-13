@@ -49,7 +49,8 @@ def main(args):
 
     # Build the models
     logger.info("Building image captioning models...")
-    vqa = VQAModel(vocab, args.max_length, args.hidden_size,
+    vqa = VQAModel(len(vocab), args.max_length, args.hidden_size,
+                   vocab(vocab.sos), vocab(vocab.eos),
                    rnn_cell=args.rnn_cell)
     logger.info("Done")
     

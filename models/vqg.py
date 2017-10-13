@@ -13,22 +13,22 @@ class VQGModel(nn.Module):
 
     """
 
-    def __init__(self, vocab, max_len, hidden_size,
+    def __init__(self, vocab_size, max_len, hidden_size,
+            sos_id, eos_id,
             n_layers=1, rnn_cell='lstm', bidirectional=False,
             input_dropout_p=0, dropout_p=0, use_attention=False):
 
         super(VQGModel, self).__init__()
         self.encoder = EncoderCNN(hidden_size)
-        self.decoder = DecoderRNN(len(vocab), max_len, hidden_size,
-                                  sos_id=vocab(vocab.sos),
-                                  eos_id=vocab(vocab.eos),
+        self.decoder = DecoderRNN(vocab_size, max_len, hidden_size,
+                                  sos_id=sos_id,
+                                  eos_id=eos_id,
                                   n_layers=1,
                                   rnn_cell=rnn_cell,
                                   bidirectional=bidirectional,
                                   input_dropout_p=input_dropout_p,
                                   dropout_p=dropout_p,
                                   use_attention=use_attention)
-        self.vocab = vocab
 
 
     def params_to_train(self):

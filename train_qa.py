@@ -49,7 +49,8 @@ def main(args):
 
     # Build the models
     logger.info("Building image captioning models...")
-    qa = QAModel(vocab, args.max_length, args.hidden_size,
+    qa = QAModel(len(vocab), args.max_length, args.hidden_size,
+                 vocab(vocab.sos), vocab(vocab.eos),
                  rnn_cell=args.rnn_cell)
     logger.info("Done")
     
