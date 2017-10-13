@@ -11,7 +11,7 @@ from models import VQGModel, QAModel, VQAModel, TopKDecoder
 from VisualGenomeQA import load_vocab, Vocabulary
 
 class ModelWrapper(object):
-    """ Wrapper class for pytorch models
+    """ Wrapper class for sequence generation models
 
     This class provides interface for pytorch models.
 
@@ -24,6 +24,11 @@ class ModelWrapper(object):
 
     """
     def __init__(self, Model, config_path):
+        """
+            Args:
+                - Model: sequence generation model class
+                - config_path: path to json file which contains model configs
+        """
         self.logger = logging.getLogger(__name__)
         self.model = self.init_model(Model, config_path)
 
@@ -105,6 +110,7 @@ class VQGWrapper(ModelWrapper):
     """ Wrapper class for VQGModel"""
     def __init__(self, config_path):
         super(VQGWrapper, self).__init__(VQGModel, config_path)
+        # transformation applied to input images
         self.transform = transforms.Compose([ 
             transforms.Scale(244),
             transforms.CenterCrop(244),
@@ -185,6 +191,7 @@ class VQAWrapper(ModelWrapper):
     """ Wrapper class for VQAModel"""
     def __init__(self, config_path):
         super(VQAWrapper, self).__init__(VQAModel, config_path)
+        # transformation applied to input images
         self.transform = transforms.Compose([ 
             transforms.Scale(244),
             transforms.CenterCrop(244),
@@ -199,11 +206,11 @@ class VQAWrapper(ModelWrapper):
             img_questions ([tuple(img_path, question)])
         """
 
+        # RNN requires input sequences to be sorted by length
+        img_questions.sort(key = lambda s: len(s[1]), reverse=True)
+
         img_paths = [pair[0] for pair in img_questions]
         questions = [pair[1] for pair in img_questions]
-
-        # RNN requires input sequences to be sorted by length
-        questions.sort(key = lambda s: len(s), reverse=True)
 
         images_var = []
         input_lengths = [len(question) for question in questions]
