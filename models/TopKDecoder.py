@@ -36,9 +36,22 @@ def _inflate(tensor, times, dim):
             [torch.LongTensor of size 4x2]
 
         """
+        """
         repeat_dims = [1] * tensor.dim()
         repeat_dims[dim] = times
         return tensor.repeat(*repeat_dims)
+        """
+        tensor_dim = len(tensor.size())
+        if tensor_dim is 3:
+            b = tensor.size(1)
+            return tensor.repeat(1, 1, times).view(tensor.size(0), b * times, -1)
+        elif tensor_dim is 2:
+            return tensor.repeat(1, times)
+        elif tensor_dim is 1:
+            b = tensor.size(0)
+            return tensor.repeat(times).view(b, -1)
+        else:
+            raise ValueError("Tensor can be of 1D, 2D or 3D only. This one is {}D.".format(tensor_dim))
 
 class TopKDecoder(torch.nn.Module):
     r"""
