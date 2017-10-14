@@ -4,8 +4,10 @@ import logging
 import torch
 from torch.autograd import Variable 
 from torchvision import transforms 
+
 from PIL import Image
 import nltk
+import numpy as np
 
 from models import VQGModel, QAModel, VQAModel, TopKDecoder
 from VisualGenomeQA import load_vocab, Vocabulary
@@ -72,7 +74,7 @@ class ModelWrapper(object):
 
     def decode_topk(self, *args):
         """ Given a list of inputs, output list of topk outputs for each
-            input.
+            input. (k = self.beam_size)
 
         Returns:
             topk_outputs(list): list of topk outputs for each input.
@@ -144,7 +146,7 @@ class VQGWrapper(ModelWrapper):
         # Run the model
         topk_questions, topk_probs = self.decode_topk(images_var)
 
-        return topk_questions
+        return topk_questions, topk_probs
 
 
 class QAWrapper(ModelWrapper):
@@ -158,25 +160,25 @@ class QAWrapper(ModelWrapper):
         Args:
             answers[[str]] - list of topk answers for each question
         """
-        # RNN requires input sequences to be sorted by length
-        questions.sort(key = lambda s: len(s), reverse=True)
 
-        input_lengths = [len(question) for question in questions]
+        # Tokenize question
+        questions = [nltk.tokenize.word_tokenize(str(question).lower())\
+                                    for question in questions]
+
+        # RNN requires input sequences to be sorted by length
+        questions.sort(key = lambda q: len(q), reverse=True)
+        input_lengths = [len(q) for q in questions]
         max_length = max(input_lengths)
-        questions_var = torch.zeros(len(questions), max_length).long()
 
         # Create input variable of questions
-        for i, question in enumerate(questions):
-            tokens = nltk.tokenize.word_tokenize(str(question).lower())
-            question = []
-            question.extend([self.vocab(token) for token in tokens])
+        questions_var = torch.zeros(len(questions), max_length).long()
+        for i, tokens in enumerate(questions):
+            question = [self.vocab(token) for token in tokens]
             end = len(question)
-
             question_tensor = torch.Tensor(question).long()
             questions_var[i, :end] = question_tensor[:end]
 
         questions_var = Variable(questions_var)
-
 
         if torch.cuda.is_available():
             questions_var = questions_var.cuda()
@@ -184,7 +186,25 @@ class QAWrapper(ModelWrapper):
         # Run the model
         topk_answers, topk_probs = self.decode_topk(questions_var, input_lengths)
 
-        return topk_answers
+        questions = [' '.join(tokens) for tokens in questions]
+
+        return questions, topk_answers, topk_probs
+
+
+    def rank(self, questions):
+        """ Rank a list of questions by sum of topk answer probs
+
+        Args:
+            questions[str]
+        """
+        questions, topk_answers, topk_probs = self.predict(questions)
+
+        # Rank questions by sum of topk answer probs
+        # LOW sum of topk answer probs means
+        # HIGH question uncertainty
+        questions_topk_probs = zip(questions, topk_probs)
+        questions_topk_probs.sort(key = lambda s: sum(s[1]))
+        return [question for question, _ in questions_topk_probs]
 
 
 class VQAWrapper(ModelWrapper):
@@ -206,18 +226,25 @@ class VQAWrapper(ModelWrapper):
             img_questions ([tuple(img_path, question)])
         """
 
-        # RNN requires input sequences to be sorted by length
-        img_questions.sort(key = lambda s: len(s[1]), reverse=True)
-
         img_paths = [pair[0] for pair in img_questions]
         questions = [pair[1] for pair in img_questions]
 
-        images_var = []
-        input_lengths = [len(question) for question in questions]
-        max_length = max(input_lengths)
-        questions_var = torch.zeros(len(questions), max_length).long()
+        # Tokenize question
+        questions = [nltk.tokenize.word_tokenize(str(question).lower())\
+                                    for question in questions]
 
-        # Create input variable of images and questions
+        # RNN requires input sequences to be sorted by length
+        # Sort question and index pairs
+        indices = range(len(questions))
+        qis = zip(questions, indices)
+        qis.sort(key=lambda qi: len(qi[0]), reverse=True)
+        questions, indices = zip(*qis)
+
+        input_lengths = [len(q) for q in questions]
+        max_length = max(input_lengths)
+
+        # Create input variable of images
+        images_var = []
         for img_path in img_paths:
             image = Image.open(img_path)
             image_tensor = Variable(self.transform(image))
@@ -226,12 +253,10 @@ class VQAWrapper(ModelWrapper):
         images_var = torch.stack(images_var)
 
         # Create input variable of questions
-        for i, question in enumerate(questions):
-            tokens = nltk.tokenize.word_tokenize(str(question).lower())
-            question = []
-            question.extend([self.vocab(token) for token in tokens])
+        questions_var = torch.zeros(len(questions), max_length).long()
+        for i, tokens in enumerate(questions):
+            question = [self.vocab(token) for token in tokens]
             end = len(question)
-
             question_tensor = torch.Tensor(question).long()
             questions_var[i, :end] = question_tensor[:end]
 
@@ -245,5 +270,12 @@ class VQAWrapper(ModelWrapper):
         topk_answers, topk_probs = self.decode_topk(images_var, questions_var,
                                                     input_lengths)
 
-        return topk_answers
+        # Resort questions using indices
+        qis = zip(questions, indices)
+        qis.sort(key=lambda qi: qi[1])
+        questions, indices = zip(*qis)
+
+        questions = [' '.join(tokens) for tokens in questions]
+
+        return questions, topk_answers, topk_probs
 
